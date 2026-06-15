@@ -2,6 +2,39 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+interface SRResult {
+  readonly isFinal: boolean;
+  readonly [index: number]: { readonly transcript: string };
+}
+
+interface SREvent extends Event {
+  readonly resultIndex: number;
+  readonly results: { readonly length: number; readonly [index: number]: SRResult };
+}
+
+interface SRErrorEvent extends Event {
+  readonly error: string;
+}
+
+interface SR extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((event: SREvent) => void) | null;
+  onerror: ((event: SRErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SR;
+    webkitSpeechRecognition?: new () => SR;
+  }
+}
+
 export interface SpeechState {
   isListening: boolean;
   transcript: string;
@@ -18,21 +51,23 @@ export function useSpeechRecognition(onFinalTranscript?: (t: string) => void): S
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SR | null>(null);
   const finalRef = useRef("");
 
-  const isSupported = typeof window !== "undefined" &&
-    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+  const isSupported =
+    typeof window !== "undefined" &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => {
     if (!isSupported) return;
-    const SR = (window.SpeechRecognition || (window as unknown as { webkitSpeechRecognition: typeof SpeechRecognition }).webkitSpeechRecognition);
-    const recognition = new SR();
+    const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SRClass) return;
+    const recognition = new SRClass();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: SREvent) => {
       let interim = "";
       let final = finalRef.current;
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -48,7 +83,7 @@ export function useSpeechRecognition(onFinalTranscript?: (t: string) => void): S
       setInterimTranscript(interim);
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (event: SRErrorEvent) => {
       setError(event.error);
       setIsListening(false);
     };
