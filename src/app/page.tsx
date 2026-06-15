@@ -1,10 +1,17 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default async function Home() {
-  const { userId } = await auth();
-  if (userId) redirect("/dashboard");
+export default function Home() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) router.replace("/dashboard");
+  }, [isLoaded, isSignedIn, router]);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: "linear-gradient(135deg, #0a0a0f 0%, #0d0d1a 50%, #080810 100%)" }}>
